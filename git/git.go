@@ -14,9 +14,13 @@ type Config struct {
 	Args       []string
 }
 
+// ErrSubCommandEmpty indicates that Config did not validate because
+// of zero valued SubCommand.
+var ErrSubCommandEmpty = errors.New("Git sub-command is empty")
+
 func (c *Config) validate() error {
 	if c.SubCommand == "" {
-		return errors.New("Git sub-command is empty")
+		return ErrSubCommandEmpty
 	}
 	return nil
 }
@@ -33,7 +37,14 @@ func (c *Config) asArray() []string {
 	return args
 }
 
-func command(args []string) *exec.Cmd {
+// execCmd represents exec.Cmd
+type execCmd interface {
+	Run() error
+}
+
+type commandCraftFunc func([]string) execCmd
+
+func command(args []string) execCmd {
 	var cmd *exec.Cmd
 	if args == nil || len(args) == 0 {
 		cmd = exec.Command("git")
@@ -47,8 +58,12 @@ func command(args []string) *exec.Cmd {
 
 // Git makes a call to git with the given parameters.
 func Git(c *Config) error {
+	return git(c, command)
+}
+
+func git(c *Config, cmd commandCraftFunc) error {
 	if c == nil {
-		if err := command(nil).Run(); err != nil {
+		if err := cmd(nil).Run(); err != nil {
 			log.Fatal(err)
 			return errors.Trace(err)
 		}
@@ -58,5 +73,5 @@ func Git(c *Config) error {
 		return errors.Trace(err)
 	}
 
-	return errors.Trace(command(c.asArray()).Run())
+	return errors.Trace(cmd(c.asArray()).Run())
 }

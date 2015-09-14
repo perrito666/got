@@ -3,9 +3,13 @@ package main
 import (
 	"flag"
 
+	"github.com/perrito666/got/bug"
 	"github.com/perrito666/got/git"
 	"github.com/perrito666/got/registry"
 )
+
+// Interface Checking
+var _ registry.Command = &bug.Command{}
 
 var args []string
 

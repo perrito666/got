@@ -1,8 +1,6 @@
 package registry
 
-import (
-	"github.com/juju/errors"
-)
+import "github.com/juju/errors"
 
 // Command represents one of the possible sub-commands of got.
 type Command interface {

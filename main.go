@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log"
 
 	"github.com/perrito666/got/bug"
 	"github.com/perrito666/got/git"
@@ -23,7 +24,13 @@ func main() {
 		// error is ignored here because calling git without
 		// arguments returns 1.
 		// TODO(perrito666) add some form of usage for got too.
-		_ = git.Git(nil)
+
+		cmd, err := git.Git(nil)
+		if err != nil {
+			panic(err)
+		}
+		_ = cmd.Run()
+		return
 	}
 	commands := registry.Commands()
 	command, ok := commands[args[0]]
@@ -32,11 +39,14 @@ func main() {
 			SubCommand: args[0],
 			Args:       args[1:],
 		}
-		if err := git.Git(c); err != nil {
+		cmd, err := git.Git(c)
+		if err != nil {
 			panic(err)
 		}
+		if err = cmd.Run(); err != nil {
+			log.Fatalln(err)
+		}
 		return
-
 	}
 	c, err := command()
 	if err != nil {
@@ -44,7 +54,7 @@ func main() {
 	}
 
 	if err := c.Run(args[1:]); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 }

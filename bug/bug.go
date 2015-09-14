@@ -1,18 +1,34 @@
 package bug
 
 import (
+	"flag"
 	"fmt"
 	"strings"
 
 	"github.com/juju/errors"
+	"github.com/perrito666/got/cli"
 	"github.com/perrito666/got/git"
 	"github.com/perrito666/got/registry"
 )
+
+var flagSet *flag.FlagSet
+
+type config struct {
+	abbreviateList bool
+	interactive    bool
+}
+
+var callConfig = &config{}
 
 func init() {
 	if err := registry.RegisterNewCommand("bug", NewBugCommand); err != nil {
 		panic(err)
 	}
+	flagSet = flag.NewFlagSet("bug", flag.ExitOnError)
+	shortDescription := "show only the bug numbers omitting the target branches"
+	flagSet.BoolVar(&callConfig.abbreviateList, "s", false, shortDescription)
+	flagSet.BoolVar(&callConfig.abbreviateList, "short", false, shortDescription)
+	flagSet.BoolVar(&callConfig.interactive, "i", false, "prompt the bug with a menu.")
 }
 
 // NewBugCommand is the constructor for the "bug" subcommand.
@@ -48,7 +64,7 @@ bug available subcommands:
       - will will be prompted to choose a commit to do the merge (all possible
       magic will be worked to try to do this, even if it is a github merge.
 
-  work
+  work [-s|--short]
     will list the bugs you can work on and the branches for wich you can do it.
 
   work [-b base_branch] <number>
@@ -75,11 +91,33 @@ func (b *Command) Run(args []string) error {
 		fmt.Print(usageDoc)
 		return nil
 	}
-	switch args[0] {
+	subC := args[0]
+	subArgs := args[1:]
+	if err := flagSet.Parse(subArgs); err != nil {
+		return errors.Annotate(err, "error parsing arguments")
+	}
+	switch subC {
 	case "work":
-		if len(args) == 1 {
-			return workListSubCommand()
+		return handleWorkSubCommand()
+
+	}
+	return nil
+}
+
+func handleWorkSubCommand() error {
+	args := flagSet.Args()
+	if len(args) == 0 {
+		if callConfig.interactive {
+			branch, err := workPickBug()
+			if err != nil {
+				return errors.Annotate(err, "error selecting a bug to work on")
+			}
+			if branch == "" {
+				return nil
+			}
+			return errors.Annotatef(git.Checkout(branch), "cannot switch to branch %q", branch)
 		}
+		return workListSubCommand(callConfig.abbreviateList)
 	}
 	return nil
 }
@@ -88,10 +126,18 @@ func utilListFixes() (map[string][]string, error) {
 	c := &git.Config{
 		SubCommand: "branch",
 	}
-	branchList, err := git.LibGit(c)
+	cmd, err := git.Git(c)
 	if err != nil {
-		return nil, errors.Annotatef(err, "could not obtain list of branches.")
+		return nil, errors.Annotate(err, "cannot create git command caller")
 	}
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, errors.Annotatef(err, "calling git %q failed: %v", c.SubCommand, out)
+	}
+
+	branchList := string(out)
+
 	branches := strings.Split(branchList, "\n")
 	fixes := make(map[string][]string)
 	for _, branch := range branches {
@@ -111,7 +157,7 @@ func utilListFixes() (map[string][]string, error) {
 	return fixes, nil
 }
 
-func workListSubCommand() error {
+func workListSubCommand(short bool) error {
 	fixes, err := utilListFixes()
 	if err != nil {
 		return errors.Trace(err)
@@ -119,9 +165,39 @@ func workListSubCommand() error {
 	fmt.Println("Available bugs and their target versions:")
 	for bug, targets := range fixes {
 		fmt.Println(bug)
+		if short {
+			continue
+		}
 		for _, target := range targets {
 			fmt.Println(fmt.Sprintf("  - %s", target))
 		}
 	}
 	return nil
+}
+
+func craftFixBranch(bugno, target string) string {
+	return fmt.Sprintf("fix_%s_%s", target, bugno)
+}
+
+func workPickBug() (string, error) {
+	fixes, err := utilListFixes()
+	if err != nil {
+		return "", errors.Trace(err)
+	}
+	choices := []string{}
+	index := []string{}
+	for bug, targets := range fixes {
+		for _, target := range targets {
+			choices = append(choices, fmt.Sprintf("%q (%s)", bug, target))
+			index = append(index, craftFixBranch(bug, target))
+		}
+	}
+	chosen, err := cli.ChoiceMenu(choices, true, -1)
+	if err != nil {
+		return "", errors.Annotate(err, "interactive bug choice failed")
+	}
+	if len(chosen) == 0 {
+		return "", nil
+	}
+	return index[chosen[0]], nil
 }

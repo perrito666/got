@@ -132,6 +132,11 @@ func (f *fakeCmd) Run() error {
 	return nil
 }
 
+// Output implements execCmd
+func (f *fakeCmd) Output() ([]byte, error) {
+	return nil, nil
+}
+
 func TestGitCallsProrperlyWithConfig(t *testing.T) {
 	var gotStrings []string
 	cmd := fakeCmd{0}
@@ -144,8 +149,16 @@ func TestGitCallsProrperlyWithConfig(t *testing.T) {
 		SubCommand: "blah",
 		Args:       []string{"string1", "string2"},
 	}
-	if err := git(&c, cmdFunc); err != nil {
+	var gitCmd execCmd
+	var err error
+	if gitCmd, err = git(&c, cmdFunc); err != nil {
 		t.Logf("git failed, got error: %v", err)
+		t.Fail()
+	}
+
+	// Test config has been properly passed
+	if err := gitCmd.Run(); err != nil {
+		t.Logf("Run failed, got error: %v", err)
 		t.Fail()
 	}
 
@@ -184,10 +197,13 @@ func TestGitCallsProrperlyWithoutConfig(t *testing.T) {
 		return &cmd
 	}
 
-	if err := git(nil, cmdFunc); err != nil {
+	var gitCmd execCmd
+	var err error
+	if gitCmd, err = git(nil, cmdFunc); err != nil {
 		t.Logf("git failed, got error: %v", err)
 		t.Fail()
 	}
+	gitCmd.Run()
 
 	if len(gotStrings) != 0 {
 		t.Logf("expected 0 got %d", len(gotStrings))

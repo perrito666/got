@@ -8,6 +8,15 @@ import (
 	"github.com/juju/errors"
 )
 
+const (
+	CMD_GIT = "git"
+)
+
+const (
+	SCMD_CHECKOUT string = "checkout"
+	SCMD_BRANCH   string = "branch"
+)
+
 // Config holds the attributes required to invoke git.
 type Config struct {
 	SubCommand string
@@ -40,6 +49,7 @@ func (c *Config) asArray() []string {
 // execCmd represents exec.Cmd
 type execCmd interface {
 	Run() error
+	Output() ([]byte, error)
 }
 
 type commandCraftFunc func([]string) execCmd
@@ -47,68 +57,57 @@ type commandCraftFunc func([]string) execCmd
 func command(args []string) execCmd {
 	var cmd *exec.Cmd
 	if args == nil || len(args) == 0 {
-		cmd = exec.Command("git")
+		cmd = exec.Command(CMD_GIT)
 	} else {
-		cmd = exec.Command("git", args...)
+		cmd = exec.Command(CMD_GIT, args...)
 	}
+
+	return cmd
+}
+
+func stdCommand(args []string) execCmd {
+	cmd := command(args).(*exec.Cmd)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	return cmd
 }
 
-type commandCraftAndRunFunc func([]string) (string, error)
-
-func runCommand(args []string) (string, error) {
-	var cmd *exec.Cmd
-	if args == nil || len(args) == 0 {
-		cmd = exec.Command("git")
-	} else {
-		cmd = exec.Command("git", args...)
-	}
-	out, err := cmd.Output()
+// Git returns a exec.Cmd for git ready with the passed configuration.
+func Git(c *Config) (*exec.Cmd, error) {
+	cmd, err := git(c, command)
 	if err != nil {
-		return "", errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
-	return string(out), nil
+	return cmd.(*exec.Cmd), nil
 }
 
-// Git makes a call to git with the given parameters.
-func Git(c *Config) error {
-	return git(c, command)
-}
-
-// LibGit will run a git command and return the stdout or error.
-func LibGit(c *Config) (string, error) {
-	return libGit(c, runCommand)
-}
-
-func libGit(c *Config, cmd commandCraftAndRunFunc) (string, error) {
-	if c == nil {
-		result, err := cmd(nil)
-		if err != nil {
-			log.Fatal(err)
-			return "", errors.Trace(err)
-		}
-		return result, nil
-	}
-	if err := c.validate(); err != nil {
-		return "", errors.Trace(err)
-	}
-
-	return cmd(c.asArray())
-}
-
-func git(c *Config, cmd commandCraftFunc) error {
-	if c == nil {
-		if err := cmd(nil).Run(); err != nil {
-			log.Fatal(err)
-			return errors.Trace(err)
-		}
-		return nil
-	}
-	if err := c.validate(); err != nil {
+// Run runs git according to the passed config and
+// returns err if it fails.
+func Run(c *Config) error {
+	cmd, err := git(c, stdCommand)
+	if err != nil {
+		log.Fatal(err)
 		return errors.Trace(err)
 	}
+	return cmd.Run()
+}
 
-	return errors.Trace(cmd(c.asArray()).Run())
+// Checkout runs git checkout on the current git repo.
+func Checkout(branch string) error {
+	c := &Config{
+		SubCommand: SCMD_CHECKOUT,
+		Args:       []string{branch},
+	}
+	return errors.Annotatef(Run(c), "cannot checkout %q", branch)
+}
+
+func git(c *Config, cmd commandCraftFunc) (execCmd, error) {
+	if c == nil {
+		return cmd(nil), nil
+	}
+	if err := c.validate(); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return cmd(c.asArray()), nil
 }

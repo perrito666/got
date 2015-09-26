@@ -1,3 +1,6 @@
+// Copyright 2015 Horacio Duran.
+// Licenced under the MIT license, see LICENCE file for details.
+
 package git
 
 import (
@@ -9,82 +12,97 @@ import (
 )
 
 const (
-	CMD_GIT = "git"
+	// CMDGit is the git shell command.
+	CMDGit = "git"
 )
 
 const (
-	SCMD_CHECKOUT string = "checkout"
-	SCMD_BRANCH   string = "branch"
+	// SCMDCheckout is the git sub command for checkout.
+	SCMDCheckout string = "checkout"
+	// SCMDBranch is the git sub command for branch.
+	SCMDBranch string = "branch"
 )
 
-// Config holds the attributes required to invoke git.
-type Config struct {
-	SubCommand string
-	Args       []string
-}
-
-// ErrSubCommandEmpty indicates that Config did not validate because
-// of zero valued SubCommand.
-var ErrSubCommandEmpty = errors.New("Git sub-command is empty")
-
-func (c *Config) validate() error {
-	if c.SubCommand == "" {
-		return ErrSubCommandEmpty
-	}
-	return nil
-}
-
-func (c *Config) asArray() []string {
-	if c.Args == nil || len(c.Args) == 0 {
-		return []string{c.SubCommand}
-	}
-	args := make([]string, len(c.Args)+1)
-	args[0] = c.SubCommand
-	for i, v := range c.Args {
-		args[i+1] = v
-	}
-	return args
-}
-
-// execCmd represents exec.Cmd
-type execCmd interface {
-	Run() error
-	Output() ([]byte, error)
-}
-
-type commandCraftFunc func([]string) execCmd
-
-func command(args []string) execCmd {
+func command(args []string) ExecCmd {
 	var cmd *exec.Cmd
 	if args == nil || len(args) == 0 {
-		cmd = exec.Command(CMD_GIT)
+		cmd = exec.Command(CMDGit)
 	} else {
-		cmd = exec.Command(CMD_GIT, args...)
+		cmd = exec.Command(CMDGit, args...)
 	}
 
 	return cmd
 }
 
-func stdCommand(args []string) execCmd {
+func stdCommand(args []string) ExecCmd {
 	cmd := command(args).(*exec.Cmd)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	return cmd
 }
 
+// ErrSubCommandEmpty indicates that Config did not validate because
+// of zero valued SubCommand.
+var ErrSubCommandEmpty = errors.New("Git sub-command is empty")
+
+// Call holds the attributes required to invoke git.
+type Call struct {
+	subCommand string
+	args       []string
+}
+
+func New(s string, a []string) Compatible {
+	return &Call{
+		subCommand: s,
+		args:       a,
+	}
+}
+
+func (c *Call) SubCommand() string {
+	return c.subCommand
+}
+
+func (c *Call) SetSubCommand(s string) {
+	c.subCommand = s
+}
+
+func (c *Call) Args() []string {
+	return c.args
+}
+func (c *Call) SetArgs(a []string) {
+	c.args = a
+}
+
+// Validate checks that Call has all the required attributes.
+func (c *Call) Validate() error {
+	return nil
+}
+
+func (c *Call) asArray() []string {
+	if c.args == nil || len(c.args) == 0 {
+		return []string{c.subCommand}
+	}
+	args := make([]string, len(c.args)+1)
+	args[0] = c.subCommand
+	for i, v := range c.args {
+		args[i+1] = v
+	}
+	return args
+}
+
 // Git returns a exec.Cmd for git ready with the passed configuration.
-func Git(c *Config) (*exec.Cmd, error) {
-	cmd, err := git(c, command)
+func (c *Call) Git() (ExecCmd, error) {
+	cmd, err := c.git(command)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	return cmd.(*exec.Cmd), nil
+	return cmd, nil
 }
 
 // Run runs git according to the passed config and
 // returns err if it fails.
-func Run(c *Config) error {
-	cmd, err := git(c, stdCommand)
+func (c *Call) Run() error {
+	cmd, err := c.git(stdCommand)
 	if err != nil {
 		log.Fatal(err)
 		return errors.Trace(err)
@@ -93,21 +111,15 @@ func Run(c *Config) error {
 }
 
 // Checkout runs git checkout on the current git repo.
-func Checkout(branch string) error {
-	c := &Config{
-		SubCommand: SCMD_CHECKOUT,
-		Args:       []string{branch},
-	}
-	return errors.Annotatef(Run(c), "cannot checkout %q", branch)
+func (c *Call) Checkout(branch string) error {
+	c.subCommand = SCMDCheckout
+	c.args = []string{branch}
+	return errors.Annotatef(c.Run(), "cannot checkout %q", branch)
 }
 
-func git(c *Config, cmd commandCraftFunc) (execCmd, error) {
-	if c == nil {
+func (c *Call) git(cmd CommandCraftFunc) (ExecCmd, error) {
+	if c.subCommand == "" {
 		return cmd(nil), nil
 	}
-	if err := c.validate(); err != nil {
-		return nil, errors.Trace(err)
-	}
-
 	return cmd(c.asArray()), nil
 }

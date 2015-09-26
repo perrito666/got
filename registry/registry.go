@@ -1,3 +1,6 @@
+// Copyright 2015 Horacio Duran.
+// Licenced under the MIT license, see LICENCE file for details.
+
 package registry
 
 import "github.com/juju/errors"

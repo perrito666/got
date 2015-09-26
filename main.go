@@ -1,3 +1,6 @@
+// Copyright 2015 Horacio Duran.
+// Licenced under the MIT license, see LICENCE file for details.
+
 package main
 
 import (
@@ -24,26 +27,16 @@ func main() {
 		// error is ignored here because calling git without
 		// arguments returns 1.
 		// TODO(perrito666) add some form of usage for got too.
-
-		cmd, err := git.Git(nil)
-		if err != nil {
-			panic(err)
-		}
-		_ = cmd.Run()
+		c := &git.Call{}
+		_ = c.Run()
 		return
 	}
 	commands := registry.Commands()
 	command, ok := commands[args[0]]
 	if !ok {
-		c := &git.Config{
-			SubCommand: args[0],
-			Args:       args[1:],
-		}
-		cmd, err := git.Git(c)
+		c := git.New(args[0], args[1:])
+		err := c.Run()
 		if err != nil {
-			panic(err)
-		}
-		if err = cmd.Run(); err != nil {
 			log.Fatalln(err)
 		}
 		return

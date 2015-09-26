@@ -1,11 +1,14 @@
+// Copyright 2015 Horacio Duran.
+// Licenced under the MIT license, see LICENCE file for details.
+
 package bug
 
 import (
 	"flag"
 	"fmt"
-	"strings"
 
 	"github.com/juju/errors"
+	"github.com/perrito666/got/bug/work"
 	"github.com/perrito666/got/cli"
 	"github.com/perrito666/got/git"
 	"github.com/perrito666/got/registry"
@@ -98,106 +101,14 @@ func (b *Command) Run(args []string) error {
 	}
 	switch subC {
 	case "work":
-		return handleWorkSubCommand()
-
+		w := work.Command{
+			Args:        flagSet.Args(),
+			Interactive: callConfig.interactive,
+			Short:       callConfig.abbreviateList,
+			UI:          &cli.UI{},
+			NewGit:      git.New,
+		}
+		return w.Handle()
 	}
 	return nil
-}
-
-func handleWorkSubCommand() error {
-	args := flagSet.Args()
-	if len(args) == 0 {
-		if callConfig.interactive {
-			branch, err := workPickBug()
-			if err != nil {
-				return errors.Annotate(err, "error selecting a bug to work on")
-			}
-			if branch == "" {
-				return nil
-			}
-			return errors.Annotatef(git.Checkout(branch), "cannot switch to branch %q", branch)
-		}
-		return workListSubCommand(callConfig.abbreviateList)
-	}
-	return nil
-}
-
-func utilListFixes() (map[string][]string, error) {
-	c := &git.Config{
-		SubCommand: "branch",
-	}
-	cmd, err := git.Git(c)
-	if err != nil {
-		return nil, errors.Annotate(err, "cannot create git command caller")
-	}
-
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, errors.Annotatef(err, "calling git %q failed: %v", c.SubCommand, out)
-	}
-
-	branchList := string(out)
-
-	branches := strings.Split(branchList, "\n")
-	fixes := make(map[string][]string)
-	for _, branch := range branches {
-		if strings.HasPrefix(strings.TrimSpace(branch), "fix_") {
-			parts := strings.SplitN(branch, "_", 3)
-			// this is not one of ours.
-			if len(parts) != 3 {
-				continue
-			}
-			target := parts[1]
-			bugno := parts[2]
-			targets := fixes[bugno]
-			targets = append(targets, target)
-			fixes[bugno] = targets
-		}
-	}
-	return fixes, nil
-}
-
-func workListSubCommand(short bool) error {
-	fixes, err := utilListFixes()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	fmt.Println("Available bugs and their target versions:")
-	for bug, targets := range fixes {
-		fmt.Println(bug)
-		if short {
-			continue
-		}
-		for _, target := range targets {
-			fmt.Println(fmt.Sprintf("  - %s", target))
-		}
-	}
-	return nil
-}
-
-func craftFixBranch(bugno, target string) string {
-	return fmt.Sprintf("fix_%s_%s", target, bugno)
-}
-
-func workPickBug() (string, error) {
-	fixes, err := utilListFixes()
-	if err != nil {
-		return "", errors.Trace(err)
-	}
-	choices := []string{}
-	index := []string{}
-	for bug, targets := range fixes {
-		for _, target := range targets {
-			choices = append(choices, fmt.Sprintf("%q (%s)", bug, target))
-			index = append(index, craftFixBranch(bug, target))
-		}
-	}
-	chosen, err := cli.ChoiceMenu(choices, true, -1)
-	if err != nil {
-		return "", errors.Annotate(err, "interactive bug choice failed")
-	}
-	if len(chosen) == 0 {
-		return "", nil
-	}
-	return index[chosen[0]], nil
 }

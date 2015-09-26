@@ -6,25 +6,10 @@ import (
 	"testing"
 )
 
-func TestConfigValidateFailsOnEmptySub(t *testing.T) {
-	c := Config{
-		SubCommand: "blah",
-		Args:       []string{},
-	}
-	if err := c.validate(); err != nil {
-		t.Logf("validation failed, expected <nil> obtained: %v", err)
-		t.Fail()
-	}
-	c.SubCommand = ""
-	if err := c.validate(); err == nil {
-		t.Logf("validation failed, expected %v obtained: %v", ErrSubCommandEmpty, err)
-	}
-}
-
 func TestConfigAsArrayReturnsProperArrayWithArgs(t *testing.T) {
-	c := Config{
-		SubCommand: "blah",
-		Args:       []string{"string1", "string2"},
+	c := Call{
+		subCommand: "blah",
+		args:       []string{"string1", "string2"},
 	}
 	arr := c.asArray()
 	if len(arr) != 3 {
@@ -33,25 +18,25 @@ func TestConfigAsArrayReturnsProperArrayWithArgs(t *testing.T) {
 	}
 
 	if arr[0] != "blah" {
-		t.Logf("expected %q got %q", c.SubCommand, arr[0])
+		t.Logf("expected %q got %q", c.subCommand, arr[0])
 		t.Fail()
 	}
 
 	if arr[1] != "string1" {
-		t.Logf("expected %q got %q", c.Args[0], arr[1])
+		t.Logf("expected %q got %q", c.args[0], arr[1])
 		t.Fail()
 	}
 
 	if arr[2] != "string2" {
-		t.Logf("expected %q got %q", c.Args[1], arr[2])
+		t.Logf("expected %q got %q", c.args[1], arr[2])
 		t.Fail()
 	}
 }
 
 func TestConfigAsArrayReturnsProperArrayWithoutArgs(t *testing.T) {
-	c := Config{
-		SubCommand: "blah",
-		Args:       []string{},
+	c := Call{
+		subCommand: "blah",
+		args:       []string{},
 	}
 	arr := c.asArray()
 	if len(arr) != 1 {
@@ -60,15 +45,15 @@ func TestConfigAsArrayReturnsProperArrayWithoutArgs(t *testing.T) {
 	}
 
 	if arr[0] != "blah" {
-		t.Logf("expected %q got %q", c.SubCommand, arr[0])
+		t.Logf("expected %q got %q", c.subCommand, arr[0])
 		t.Fail()
 	}
 }
 
 func TestConfigCommandCraftsProperCommandWithArgs(t *testing.T) {
-	c := Config{
-		SubCommand: "blah",
-		Args:       []string{"string1", "string2"},
+	c := Call{
+		subCommand: "blah",
+		args:       []string{"string1", "string2"},
 	}
 	com := command(c.asArray()).(*exec.Cmd)
 
@@ -88,17 +73,17 @@ func TestConfigCommandCraftsProperCommandWithArgs(t *testing.T) {
 	}
 
 	if com.Args[1] != "blah" {
-		t.Logf("expected %q got %q", c.SubCommand, com.Args[1])
+		t.Logf("expected %q got %q", c.subCommand, com.Args[1])
 		t.Fail()
 	}
 
 	if com.Args[2] != "string1" {
-		t.Logf("expected %q got %q", c.Args[0], com.Args[2])
+		t.Logf("expected %q got %q", c.args[0], com.Args[2])
 		t.Fail()
 	}
 
 	if com.Args[3] != "string2" {
-		t.Logf("expected %q got %q", c.Args[1], com.Args[3])
+		t.Logf("expected %q got %q", c.args[1], com.Args[3])
 		t.Fail()
 	}
 }
@@ -140,18 +125,18 @@ func (f *fakeCmd) Output() ([]byte, error) {
 func TestGitCallsProrperlyWithConfig(t *testing.T) {
 	var gotStrings []string
 	cmd := fakeCmd{0}
-	cmdFunc := func(s []string) execCmd {
+	cmdFunc := func(s []string) ExecCmd {
 		gotStrings = s
 		return &cmd
 	}
 
-	c := Config{
-		SubCommand: "blah",
-		Args:       []string{"string1", "string2"},
+	c := Call{
+		subCommand: "blah",
+		args:       []string{"string1", "string2"},
 	}
-	var gitCmd execCmd
+	var gitCmd ExecCmd
 	var err error
-	if gitCmd, err = git(&c, cmdFunc); err != nil {
+	if gitCmd, err = c.git(cmdFunc); err != nil {
 		t.Logf("git failed, got error: %v", err)
 		t.Fail()
 	}
@@ -168,17 +153,17 @@ func TestGitCallsProrperlyWithConfig(t *testing.T) {
 	}
 
 	if gotStrings[0] != "blah" {
-		t.Logf("expected %q got %q", c.SubCommand, gotStrings[0])
+		t.Logf("expected %q got %q", c.subCommand, gotStrings[0])
 		t.Fail()
 	}
 
 	if gotStrings[1] != "string1" {
-		t.Logf("expected %q got %q", c.Args[0], gotStrings[1])
+		t.Logf("expected %q got %q", c.args[0], gotStrings[1])
 		t.Fail()
 	}
 
 	if gotStrings[2] != "string2" {
-		t.Logf("expected %q got %q", c.Args[1], gotStrings[2])
+		t.Logf("expected %q got %q", c.args[1], gotStrings[2])
 		t.Fail()
 	}
 
@@ -192,14 +177,15 @@ func TestGitCallsProrperlyWithConfig(t *testing.T) {
 func TestGitCallsProrperlyWithoutConfig(t *testing.T) {
 	var gotStrings []string
 	cmd := fakeCmd{0}
-	cmdFunc := func(s []string) execCmd {
+	cmdFunc := func(s []string) ExecCmd {
 		gotStrings = s
 		return &cmd
 	}
 
-	var gitCmd execCmd
+	var gitCmd ExecCmd
 	var err error
-	if gitCmd, err = git(nil, cmdFunc); err != nil {
+	c := Call{}
+	if gitCmd, err = c.git(cmdFunc); err != nil {
 		t.Logf("git failed, got error: %v", err)
 		t.Fail()
 	}

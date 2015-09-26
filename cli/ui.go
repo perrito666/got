@@ -1,3 +1,6 @@
+// Copyright 2015 Horacio Duran.
+// Licenced under the MIT license, see LICENCE file for details.
+
 package cli
 
 import (
@@ -5,10 +8,14 @@ import (
 	gc "github.com/rthornton128/goncurses"
 )
 
+// UI groups methods that pertain to User Interfaces.
+type UI struct {
+}
+
 // ChoiceMenu presents the user with a set of choices to toggle using
 // a ncurses togle-able menu.
 // TODO(perrito) current should be a list and used
-func ChoiceMenu(items []string, one bool, curent int) ([]int, error) {
+func (*UI) ChoiceMenu(items []string, one bool, curent int) ([]int, error) {
 	stdscr, err := gc.Init()
 	defer gc.End()
 	if err != nil {

@@ -29,7 +29,7 @@ func (w *Command) Handle() error {
 			return w.List()
 		}
 
-		branch, err := w.PickBug()
+		branch, err := w.PickFeature()
 		if err != nil {
 			return errors.Annotate(err, "could not select a bug to work on")
 		}
@@ -50,18 +50,18 @@ func (w *Command) Handle() error {
 	return nil
 }
 
-// List prints a list of the existing bug branches listing
-// the bug number and underneath all the target branches.
-// If short is provided, the list will show only bug numbers.
-// For a bug to show in this list, the branch name must
-// be of the form fix_<target>_<bug id>
+// List prints a list of the existing feature branches listing
+// the feature name and underneath all the target branches.
+// If short is provided, the list will show only features names.
+// For a feature to show in this list, the branch name must
+// be of the form feature_<target>_<feature name>
 func (w *Command) List() error {
 	fmt.Println("Available bugs and their target versions:")
-	return util.PrintList(w.NewGit, util.FixType, w.Short)
+	return util.PrintList(w.NewGit, util.FeatureType, w.Short)
 }
 
-// PickBug will prompt the user which bug branch to
+// PickFeature will prompt the user which bug branch to
 // checkout.
-func (w *Command) PickBug() (string, error) {
-	return util.Picker(util.FixType, w.NewGit, w.UI)
+func (w *Command) PickFeature() (string, error) {
+	return util.Picker(util.FeatureType, w.NewGit, w.UI)
 }

@@ -51,6 +51,7 @@ type Call struct {
 	args       []string
 }
 
+// New returns a new git Call
 func New(s string, a []string) Compatible {
 	return &Call{
 		subCommand: s,
@@ -58,17 +59,22 @@ func New(s string, a []string) Compatible {
 	}
 }
 
+// SubCommand returns subcommands
 func (c *Call) SubCommand() string {
 	return c.subCommand
 }
 
+// SetSubCommand sets the call sub command.
 func (c *Call) SetSubCommand(s string) {
 	c.subCommand = s
 }
 
+// Args return the call args.
 func (c *Call) Args() []string {
 	return c.args
 }
+
+// SetArgs sets the call args.
 func (c *Call) SetArgs(a []string) {
 	c.args = a
 }

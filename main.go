@@ -8,12 +8,14 @@ import (
 	"log"
 
 	"github.com/perrito666/got/bug"
+	"github.com/perrito666/got/feature"
 	"github.com/perrito666/got/git"
 	"github.com/perrito666/got/registry"
 )
 
 // Interface Checking
 var _ registry.Command = &bug.Command{}
+var _ registry.Command = &feature.Command{}
 
 var args []string
 
